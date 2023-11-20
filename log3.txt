@@ -1,0 +1,5 @@
+Log Id (1) : {'Records': {'type': 'metadata', 'name': 'RegisterBrokerRecord', 'fields': {'internalUUID': '0', 'brokerId': 2, 'brokerHost': 'hello.com', 'securityProtocol': 'HTTPS', 'brokerStatus': 'active', 'rackId': '12', 'epoch': 0}}, 'timestamp': '2023-11-21 05:07:22.893607'}
+Log Id (2) : {'Records': {'type': 'metadata', 'name': 'TopicRecord', 'fields': {'internalUUID': '0', 'name': 'share'}}, 'timestamp': '2023-11-21 05:07:24.958686'}
+Log Id (3) : {'Records': {'type': 'metadata', 'name': 'PartitionRecord', 'fields': {'topicUUID': '', 'partitionId': '0', 'replicas': '', 'ISR': '', 'removingReplicas': '', 'addingReplicas': '', 'leader': '', 'partitionEpoch': '0'}}, 'timestamp': '2023-11-21 05:07:27.091602'}
+Log Id (4) : {'Records': {'type': 'metadata', 'name': 'PartitionRecord', 'fields': {'brokerId': '', 'brokerEpoch': '0', 'producerId': '0'}}, 'timestamp': '2023-11-21 05:07:29.190928'}
+Log Id (5) : {'Records': {'type': 'metadata', 'name': 'RegistrationChangeBrokerRecord', 'fields': {'brokerId': 2, 'brokerHost': 'localhost', 'securityProtocol': 'HTTPS', 'brokerStatus': 'fenced'}}, 'timestamp': '2023-11-21 05:07:31.314269'}

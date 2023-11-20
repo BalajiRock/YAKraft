@@ -23,6 +23,8 @@ NewProducer = ''
 BrokerID = 0 
 TopicID = 0
 PartitionId = 0
+updateBrokerRecordVotes = 0
+newUpdateBrokerRecord = '' 
 
 global app
 app = Flask(__name__)
@@ -164,6 +166,33 @@ def setNewProducer(Producer):
 def getNewProducer():
     global NewProducer
     return NewProducer
+
+def setUpdateBrokerRecordVotes():
+    global updateBrokerRecordVotes 
+    updateBrokerRecordVotes = 1
+    return updateBrokerRecordVotes
+
+def getUpdateBrokerRecordVotes():
+    global updateBrokerRecordVotes
+    return updateBrokerRecordVotes
+
+def incrementUpdateBrokerRecordVotes():
+    global updateBrokerRecordVotes
+    updateBrokerRecordVotes += 1
+    return updateBrokerRecordVotes
+
+def setUpdateBrokerRecord(record):
+    global newUpdateBrokerRecord
+    newUpdateBrokerRecord = record
+    return newUpdateBrokerRecord
+def getUpdateBrokerRecord():
+    global newUpdateBrokerRecord
+    return newUpdateBrokerRecord
+    
+    
+    
+    
+    
 def getBrokerEpoch(id,BrokerMetadata):
     print(BrokerMetadata)
     for broker in BrokerMetadata["Records"]:
@@ -208,9 +237,9 @@ MetaData['ProducerIdsRecord'] = dict()
 MetaData['ProducerIdsRecord']['Records'] = []
 MetaData['ProducerIdsRecord']['timestamp'] = ''
 
-MetaData['BrokerRegistrationChangeBrokerRecord'] = dict()
-MetaData['BrokerRegistrationChangeBrokerRecord']['Records'] = []
-MetaData['BrokerRegistrationChangeBrokerRecord']['timestamp'] = ''
+# MetaData['BrokerRegistrationChangeBrokerRecord'] = dict()
+# MetaData['BrokerRegistrationChangeBrokerRecord']['Records'] = []
+# MetaData['BrokerRegistrationChangeBrokerRecord']['timestamp'] = ''
 MetaData['timestamp']=''
 
 
@@ -657,6 +686,196 @@ def confirmProducerCreation():
             print("couldn't commit")
     return Response('Commited Producer Creation') # should unique ID of the Producer
    
+
+@app.route('/UpdateBrokerRecordFromClient',methods = ['POST'])
+def updateBrokerRecordFromClient():
+    setUpdateBrokerRecordVotes()
+    # setCreateNewPartionsVotes()
+    print("Client requested to create new Producer :",request.data.decode())
+    # Alter the recieved data here
+    client_data = json.loads(request.data.decode())
+    # print("Meta Data ======================",MetaData,client_data["brokerId"])
+    data = dict()
+    data["brokerId"] = client_data["brokerId"]
+    data["brokerHost"] = client_data["brokerHost"]
+    # data["brokerPort"] = client_data["brokerPort"]
+    data["securityProtocol"] = client_data["securityProtocol"]
+    data["brokerStatus"] = client_data["brokerStatus"]
+    data["timestamp"] = str(datetime.datetime.now())
+    
+    
+    setUpdateBrokerRecord(data)
+    # ID 
+    success = False
+    for peer in node.peers.values():
+        url = 'http://127.0.1.1:'+str(int(peer.port)+1)+'/updateBrokerRecordFromLeader'
+        # try:
+        r = requests.post(url=url,data=bytes(str(data),'ascii'))
+        if r.content.decode() == "success":
+            success = True
+        # except:
+            # print("Not able to forward to peer ",peer.nid)
+        if success:
+            return Response("successfully updated")
+    return Response("Couldn't create Broker")
+
+@app.route('/confirmBrokerRecordUpdation',methods =['POST'])
+def confirmBrokerupdation():
+    no_of_nodes = len(node.peers) + 1 
+    # print(no_of_nodes)
+    votes = incrementUpdateBrokerRecordVotes()
+    data = getUpdateBrokerRecord()
+    confirm = False
+    
+    if votes == math.ceil((len(node.peers)+1)/2) :# count the no of nodes and make it generalized 
+        # try:
+        recieved_data = request.data.decode()
+        dictionary = dict()
+        recieved_data = recieved_data.strip()[1:-1].split(",")
+        for ele in recieved_data:
+            dictionary[ele.strip().split(":",1)[0][1:-1]] = ele.strip().split(":",1)[1].strip()[1:-1]
+        data = dict()
+        data["type"] = "metadata"
+        data["name"] = "RegistrationChangeBrokerRecord"
+        data["fields"] = dict()
+        data["fields"]["brokerId"] = int(dictionary["brokerId"]) 
+        data["fields"]["brokerHost"] = dictionary["brokerHost"] 
+        data["fields"]["securityProtocol"] = dictionary["securityProtocol"] 
+        data["fields"]["brokerStatus"] = dictionary["brokerStatus"] 
+        print(data)
+        # MetaData['RegistrationChangeBrokerRecord']['Records'].append(data)
+        # MetaData['RegistrationChangeBrokerRecord']['timestamp'] = dictionary["timestamp"]
+        # MetaData['RegisterBrokerRecord']['timestamp'] = dictionary["timestamp"]
+        
+        for record in MetaData["RegisterBrokerRecord"]["Records"]:
+            if int(dictionary["brokerId"]) == record["fields"]["brokerId"]:
+                record["fields"]["brokerHost"] = dictionary["brokerHost"]
+                record["fields"]["securityProtocol"] = dictionary["securityProtocol"]
+                record["fields"]["brokerStatus"] = dictionary["brokerStatus"]
+                record["fields"]["epoch"] = str(int(record["fields"]["epoch"])+1)
+                MetaData['timestamp']=dictionary["timestamp"]
+                
+
+        
+        # print(MetaData)
+        # trigger add logs
+        confirm = True
+        url = 'http://127.0.1.1:'+str(node.port+1)+'/brokers'
+        data_log = dict()
+        data_log["Records"] = data
+        data_log["timestamp"] = dictionary["timestamp"]
+        r = requests.post(url=url,data=bytes(str(data_log),'ascii'))
+        # except:
+        #     print("couldn't commit")
+        if confirm:
+            return Response("commited")
+    return Response('not commited') # should unique ID of the broker 
+
+@app.route('/updateBrokerRecordFromLeader',methods = ['POST'])
+def replicateUpdateBroker():
+    try:
+        recieved_data = request.data.decode()
+        dictionary = dict()
+        recieved_data = recieved_data.strip()[1:-1].split(",")
+        for ele in recieved_data:
+            dictionary[ele.strip().split(":",1)[0][1:-1]] = ele.strip().split(":",1)[1].strip()[1:-1]
+        data = dict()
+        data["type"] = "metadata"
+        data["name"] = "RegistrationChangeBrokerRecord"
+        data["fields"] = dict()
+        data["fields"]["brokerId"] = int(dictionary["brokerId"]) 
+        data["fields"]["brokerHost"] = dictionary["brokerHost"] 
+        data["fields"]["securityProtocol"] = dictionary["securityProtocol"] 
+        data["fields"]["brokerStatus"] = dictionary["brokerStatus"]
+        print(data)
+        # MetaData['RegistrationChangeBrokerRecord']['Records'].append(data)
+        # MetaData['RegistrationChangeBrokerRecord']['timestamp'] = dictionary["timestamp"]
+        # MetaData['RegisterBrokerRecord']['timestamp'] = dictionary["timestamp"]
+        
+        for record in MetaData["RegisterBrokerRecord"]["Records"]:
+            if int(dictionary["brokerId"]) == record["fields"]["brokerId"]:
+                record["fields"]["brokerHost"] = dictionary["brokerHost"]
+                record["fields"]["securityProtocol"] = dictionary["securityProtocol"]
+                record["fields"]["brokerStatus"] = dictionary["brokerStatus"]
+                record["fields"]["epoch"] = str(int(record["fields"]["epoch"])+1) 
+                MetaData['timestamp']=dictionary["timestamp"]
+                
+        recieved = False
+        for peer in node.peers.values():
+            if peer.state == 'l':  
+                url = 'http://127.0.1.1:'+str(int(peer.port)+1)+'/confirmBrokerRecordUpdation'
+                data = b'Broker Creation done'
+                r = requests.post(url=url,data=request.data)
+                if r.content.decode() == "commited":
+                    recieved = True
+    except:
+        print("couldn't confirm from :",node.nid)
+    # print("Metadata == ",MetaData)
+    if recieved:
+        return Response("success")
+    return Response("failure")
+
+
+
+
+
+
+
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
 
 
 @app.route('/GetAllActiveBrokers',methods=['POST'])

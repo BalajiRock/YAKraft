@@ -73,18 +73,18 @@ server.start()
 time.sleep(5)
 # Create Broker Record 
 
-# newBroker = b'{"brokerId":"2","brokerHost": "hello.com","brokerPort": "3000","securityProtocol": "HTTPS","rackId": "12"}'
-# createBrokerUrl = str(getLeaderAddr())+'/createBrokerFromClient'
-# res = requests.post(url=createBrokerUrl,data=newBroker)
+newBroker = b'{"brokerId":"2","brokerHost": "hello.com","brokerPort": "3000","securityProtocol": "HTTPS","rackId": "12"}'
+createBrokerUrl = str(getLeaderAddr())+'/createBrokerFromClient'
+res = requests.post(url=createBrokerUrl,data=newBroker)
 
-# print("-------------------------------->",res.content.decode())
+print("-------------------------------->",res.content.decode())
 
 # Create Topic Record
-# newTopic =  b'{"name": "share"}'
-# createTopicUrl =str(getLeaderAddr())+'/createTopicFromClient'
-# res = requests.post(url=createTopicUrl,data=newTopic)
+newTopic =  b'{"name": "share"}'
+createTopicUrl =str(getLeaderAddr())+'/createTopicFromClient'
+res = requests.post(url=createTopicUrl,data=newTopic)
 
-# print("-------------------------------->",res.content.decode())
+print("-------------------------------->",res.content.decode())
 
 
 # Create Partitions Record 
@@ -92,6 +92,35 @@ newPartiton =  b'{"partitionId": "0", "topicUUID": "",  "replicas": [], "ISR": [
 createpartitionUrl =str(getLeaderAddr())+'/createPartitionFromClient'
 res = requests.post(url=createpartitionUrl,data=newPartiton)
 
+print("-------------------------------->",res.content.decode())
+
+# Create Producer Ids 
+newProducer = b'{"brokerId": "","producerId": "0"}'
+createproducerUrl =str(getLeaderAddr())+'/createProducerFromClient'
+res = requests.post(url=createproducerUrl,data=newProducer)
+
+
+# Read All Active Brokers 
+getAllActiveBrokers = str(getLeaderAddr())+'/GetAllActiveBrokers'
+res = requests.post(url=getAllActiveBrokers,data=b'get all active Brokers')
+print("-------------------------------->",res.content.decode())
+
+# Read Broker By ID
+getBrokerById =str(getLeaderAddr())+'/GetBrokerById'
+res = requests.post(url=getBrokerById,data=b'2')
+print("-------------------------------->",res.content.decode())
+
+# Read Topics By ID
+getTopicBYId =str(getLeaderAddr())+'/GetTopicBYId'
+res = requests.post(url=getTopicBYId,data=b'share')
+print("-------------------------------->",res.content.decode())
+
+
+# UpdateBroker 
+updateBrokerRecord = b'{"brokerId": "2", "brokerHost": "localhost", "securityProtocol": "HTTPS", "brokerStatus": "fenced"}'
+UpdateUrl =str(getLeaderAddr())+'/UpdateBrokerRecordFromClient'
+print(UpdateUrl)
+res = requests.post(url=UpdateUrl,data=updateBrokerRecord)
 
 
 
