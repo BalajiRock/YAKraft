@@ -1,0 +1,1 @@
+Log Id (1) : {'Records': {'type': 'metadata', 'name': 'RegisterBrokerRecord', 'fields': {'internalUUID': '0', 'brokerId': 2, 'brokerHost': 'hello.com', 'securityProtocol': 'HTTPS', 'brokerStatus': 'active', 'rackId': '12', 'epoch': 0}}, 'timestamp': '2023-11-20 23:45:57.867915'}
