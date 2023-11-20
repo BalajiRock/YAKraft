@@ -6,6 +6,7 @@ import requests
 from flask_cors import CORS
 import datetime
 import json
+import math
 
 votes = 0
 current_log_info = ''
@@ -218,16 +219,9 @@ MetaData['timestamp']=''
 @app.route('/createBrokerFromClient',methods=['POST','GET'])
 def create_broker():
     setCreateBrokerVotes()
-    # print("Broker requested to create new record :",request.data.decode())
-    # Alter the recieved data here
     client_data = json.loads(request.data.decode())
-    # print(type(client_data))
-    # print(client_data["brokerHost"])
     
     data = dict()
-    # data["type"] = "metadata"
-    # data["name"] = "RegisterBrokerRecord"
-    # data["fields"] = dict()
     data["internalUUID"] = str(getBrokerID())
     data["brokerId"] = client_data["brokerId"]
     data["brokerHost"] = client_data["brokerHost"]
@@ -237,24 +231,29 @@ def create_broker():
     data["epoch"] = '0'
     data["timestamp"] = str(datetime.datetime.now())
     
-    # print(data["timestamp"])
-    # print(data)
     setNewBrokerRecord(data)
     # ID 
+    success = False
     for peer in node.peers.values():
         url = 'http://127.0.1.1:'+str(int(peer.port)+1)+'/createBrokerRecordFromLeader'
         # try:
         r = requests.post(url=url,data=bytes(str(data),'ascii'))
+        if r.content.decode() == "success":
+            success = True
         # except:
             # print("Not able to forward to peer ",peer.nid)
-    return Response("Broker Create Forwarded to followers")
+        if success:
+            return Response(str(data["internalUUID"]))
+    return Response("Couldn't create Broker")
 @app.route('/confirmCreationBrokerRecord',methods =['POST'])
 def confirmBrokerCreation():
     no_of_nodes = len(node.peers) + 1 
     # print(no_of_nodes)
     votes = incrementCreateBrokerVotes()
     data = getNewBrokerRecord()
-    if votes == 2 :# count the no of nodes and make it generalized 
+    confirm = False
+    
+    if votes == math.ceil((len(node.peers)+1)/2) :# count the no of nodes and make it generalized 
         # try:
         recieved_data = request.data.decode()
         dictionary = dict()
@@ -278,6 +277,7 @@ def confirmBrokerCreation():
         MetaData['timestamp']=dictionary["timestamp"]
         # print(MetaData)
         # trigger add logs
+        confirm = True
         incrementBrokerID()
         url = 'http://127.0.1.1:'+str(node.port+1)+'/brokers'
         data_log = dict()
@@ -286,18 +286,17 @@ def confirmBrokerCreation():
         r = requests.post(url=url,data=bytes(str(data_log),'ascii'))
         # except:
         #     print("couldn't commit")
-    return Response('Commited Broker Record Creation') # should unique ID of the broker 
+        if confirm:
+            return Response("commited")
+    return Response('not commited') # should unique ID of the broker 
 
 @app.route('/createBrokerRecordFromLeader',methods = ['POST'])
 def replicateCreateBroker():
-    # print(request.data.decode())
     try:
         recieved_data = request.data.decode()
-        # data = json.loads(data)
         dictionary = dict()
         recieved_data = recieved_data.strip()[1:-1].split(",")
         for ele in recieved_data:
-            # print("--------------------------------------",ele)
             dictionary[ele.strip().split(":",1)[0][1:-1]] = ele.strip().split(":",1)[1].strip()[1:-1]
         data = dict()
         data["type"] = "metadata"
@@ -310,25 +309,28 @@ def replicateCreateBroker():
         data["fields"]["brokerStatus"] = dictionary["brokerStatus"] 
         data["fields"]["rackId"] = dictionary["rackId"] 
         data["fields"]["epoch"] = int(dictionary["epoch"] )
-        # print(data)
         MetaData['RegisterBrokerRecord']['Records'].append(data)
         MetaData['RegisterBrokerRecord']['timestamp'] = dictionary["timestamp"]
         MetaData['timestamp']=dictionary["timestamp"]
-        # print(MetaData)
-
+        recieved = False
         for peer in node.peers.values():
             if peer.state == 'l':  
                 url = 'http://127.0.1.1:'+str(int(peer.port)+1)+'/confirmCreationBrokerRecord'
                 data = b'Broker Creation done'
                 r = requests.post(url=url,data=request.data)
+                if r.content.decode() == "commited":
+                    recieved = True
     except:
         print("couldn't confirm from :",node.nid)
     # print("Metadata == ",MetaData)
-    return Response("BrokerCreate Replicated")
+    if recieved:
+        return Response("success")
+    return Response("failure")
+
+
+
 
 # Topic Creation 
-
-
 
 @app.route('/createTopicFromClient',methods=['POST','GET'])
 def create_topic():
@@ -344,12 +346,18 @@ def create_topic():
     
     setNewTopic(data)
     # ID 
+    success = False
+    
     for peer in node.peers.values():
         url = 'http://127.0.1.1:'+str(int(peer.port)+1)+'/createTopicFromLeader'
         try:
             r = requests.post(url=url,data=bytes(str(data),'ascii'))
+            if r.content.decode() =="success":
+                success = True
         except:
             print("Not able to forward to peer ",peer.nid)
+    if success:
+        return Response(str(data["internalUUID"]))
     return Response("New topic creation forwarded to followers")  
    
 @app.route('/createTopicFromLeader',methods = ['POST'])
@@ -374,14 +382,19 @@ def replicateCreateTopic():
     MetaData['TopicRecord']['Records'].append(data)
     MetaData['TopicRecord']['timestamp'] = dictionary["timestamp"]
     MetaData['timestamp']=dictionary["timestamp"]
+    success = False
     for peer in node.peers.values():
         if peer.state == 'l':  
             url = 'http://127.0.1.1:'+str(int(peer.port)+1)+'/confirmTopicCreation'
             r = requests.post(url=url,data=request.data)
+            if r.content.decode() == "commited":
+                success = True
     # except:
         # print("couldn't confirm from :",node.nid)
     # print("Metadata == ",MetaData)
-    return Response("Topic Replicated")
+    if success:
+        return Response("success")
+    return Response("failure")
 
 @app.route('/confirmTopicCreation',methods =['POST'])
 def confirmTopicCreation():
@@ -389,16 +402,13 @@ def confirmTopicCreation():
     # print(no_of_nodes)
     votes = incrementCreateTopicVotes()
     data = getNewTopic()
-
-    if votes == 2 :# count the no of nodes and make it generalized 
+    confirmed = False
+    if votes == math.ceil((len(node.peers)+1)/2) :# count the no of nodes and make it generalized 
         try:
             recieved_data = request.data.decode()
-            # data = json.loads(data)
             dictionary = dict()
-            # print(recieved_data)
             recieved_data = recieved_data.strip()[1:-1].split(",")
             for ele in recieved_data:
-                # print("--------------------------------------",ele)
                 dictionary[ele.strip().split(":",1)[0][1:-1]] = ele.strip().split(":",1)[1].strip()[1:-1]
             data = dict()
             data["type"] = "metadata"
@@ -406,23 +416,21 @@ def confirmTopicCreation():
             data["fields"] = dict()
             data["fields"]["internalUUID"] = dictionary["internalUUID"] 
             data["fields"]["name"] = dictionary["name"] 
-            # print(data)
             MetaData['TopicRecord']['Records'].append(data)
             MetaData['TopicRecord']['timestamp'] = dictionary["timestamp"]
             MetaData['timestamp']=dictionary["timestamp"]
-            # print(MetaData)
-            # trigger add logs
             url = 'http://127.0.1.1:'+str(node.port+1)+'/brokers'
             data_log = dict()
             data_log["Records"] = data
             data_log["timestamp"] = dictionary["timestamp"]
-            # print("________________________________________called______________________________________________")
             r = requests.post(url=url,data=bytes(str(data_log),'ascii'))
-                
+            confirmed = True
             incrementTopicID()
         except:
             print("couldn't commit")
-    return Response('Commited topic Creation') # should unique ID of the Topic 
+        if confirmed:
+            return Response("commited")
+    return Response('Not Commited') # should unique ID of the Topic 
 
 
 
@@ -444,23 +452,25 @@ def createPartition():
     data["leader"] = client_data["leader"]
     data["partitionEpoch"] = '0'
     data["timestamp"] = str(datetime.datetime.now())
-    
-    
-    
-    
     setNewPartition(data)
     # ID 
+    success = False
     for peer in node.peers.values():
         url = 'http://127.0.1.1:'+str(int(peer.port)+1)+'/createPartitionFromLeader'
         try:
             r = requests.post(url=url,data=bytes(str(data),'ascii'))
+            if r.content.decode() == "success":
+                success = True
         except:
             print("Not able to forward to peer ",peer.nid)
-    return Response("New Partition creation forwarded to followers")  
+    if success:
+        return Response(str(data["partitionId"]))
+    return Response("Couldn't create topic")  
    
 @app.route('/createPartitionFromLeader',methods = ['POST'])
 def replicateCreatepartition():
     print(request.data.decode())
+    success = False
     try:
         recieved_data = request.data.decode()
         # data = json.loads(data)
@@ -473,7 +483,7 @@ def replicateCreatepartition():
         data["type"] = "metadata"
         data["name"] = "PartitionRecord"
         data["fields"] = dict()
-        data["fields"]["internalUUID"] = dictionary["internalUUID"] 
+        data["fields"]["topicUUID"] = dictionary["topicUUID"] 
         data["fields"]["partitionId"] = dictionary["partitionId"] 
         data["fields"]["replicas"] = dictionary["replicas"] 
         data["fields"]["ISR"] = dictionary["ISR"] 
@@ -486,14 +496,19 @@ def replicateCreatepartition():
         MetaData['PartitionRecord']['timestamp'] = dictionary["timestamp"]
         MetaData['timestamp']=dictionary["timestamp"]
         # print(MetaData)
+
         for peer in node.peers.values():
             if peer.state == 'l':  
                 url = 'http://127.0.1.1:'+str(int(peer.port)+1)+'/confirmPartitionCreation'
                 r = requests.post(url=url,data=request.data)
+                if r.content.decode() == "commited":
+                    success = True
     except:
         print("couldn't confirm from :",node.nid)
     print("Metadata == ",MetaData)
-    return Response("Partition Replicated")
+    if success:
+        return Response("success")
+    return Response("failure")
 
 @app.route('/confirmPartitionCreation',methods =['POST'])
 def confirmPartitionCreation():
@@ -501,44 +516,47 @@ def confirmPartitionCreation():
     # print(no_of_nodes)
     votes = incrementeNewPartionsVotes()
     data = getNewPartition()
-    if votes == 2 :# count the no of nodes and make it generalized 
-        # try:
-        recieved_data = request.data.decode()
-        print("------------------>>>>>>>>>",recieved_data)
-        # data = json.loads(data)
-        dictionary = dict()
-        recieved_data = recieved_data.strip()[1:-1].split(",")
-        for ele in recieved_data:
-            # print("--------------------------------------",ele)
-            dictionary[ele.strip().split(":",1)[0][1:-1]] = ele.strip().split(":",1)[1].strip()[1:-1]
-        data = dict()
-        data["type"] = "metadata"
-        data["name"] = "PartitionRecord"
-        data["fields"] = dict()
-        data["fields"]["internalUUID"] = dictionary["internalUUID"] 
-        data["fields"]["partitionId"] = dictionary["partitionId"] 
-        data["fields"]["replicas"] = dictionary["replicas"] 
-        data["fields"]["ISR"] = dictionary["ISR"] 
-        data["fields"]["removingReplicas"] = dictionary["removingReplicas"] 
-        data["fields"]["addingReplicas"] = dictionary["addingReplicas"] 
-        data["fields"]["leader"] = dictionary["leader"] 
-        data["fields"]["partitionEpoch"] = dictionary["partitionEpoch"] 
-        # print(data)
-        MetaData['PartitionRecord']['Records'].append(data)
-        MetaData['PartitionRecord']['timestamp'] = dictionary["timestamp"]
-        MetaData['timestamp']=dictionary["timestamp"]
-        print(MetaData)
-        # trigger add logs
-        incrementPartitionID()
-        url = 'http://127.0.1.1:'+str(node.port+1)+'/brokers'
-        data_log = dict()
-        data_log["Records"] = data
-        data_log["timestamp"] = dictionary["timestamp"]
-        r = requests.post(url=url,data=bytes(str(data_log),'ascii'))
-        
-        # except:
-            # print("couldn't commit")
-    return Response('Commited Partition Creation') # should unique ID of the partition
+    confirm = False
+    if votes == math.ceil((len(node.peers)+1)/2) :# count the no of nodes and make it generalized 
+        try:
+            recieved_data = request.data.decode()
+            # print("------------------>>>>>>>>>",recieved_data)
+            # data = json.loads(data)
+            dictionary = dict()
+            recieved_data = recieved_data.strip()[1:-1].split(",")
+            for ele in recieved_data:
+                # print("--------------------------------------",ele)
+                dictionary[ele.strip().split(":",1)[0][1:-1]] = ele.strip().split(":",1)[1].strip()[1:-1]
+            data = dict()
+            data["type"] = "metadata"
+            data["name"] = "PartitionRecord"
+            data["fields"] = dict()
+            data["fields"]["topicUUID"] = dictionary["topicUUID"] 
+            data["fields"]["partitionId"] = dictionary["partitionId"] 
+            data["fields"]["replicas"] = dictionary["replicas"] 
+            data["fields"]["ISR"] = dictionary["ISR"] 
+            data["fields"]["removingReplicas"] = dictionary["removingReplicas"] 
+            data["fields"]["addingReplicas"] = dictionary["addingReplicas"] 
+            data["fields"]["leader"] = dictionary["leader"] 
+            data["fields"]["partitionEpoch"] = dictionary["partitionEpoch"] 
+            # print(data)
+            MetaData['PartitionRecord']['Records'].append(data)
+            MetaData['PartitionRecord']['timestamp'] = dictionary["timestamp"]
+            MetaData['timestamp']=dictionary["timestamp"]
+            print(MetaData)
+            # trigger add logs
+            incrementPartitionID()
+            url = 'http://127.0.1.1:'+str(node.port+1)+'/brokers'
+            data_log = dict()
+            data_log["Records"] = data
+            data_log["timestamp"] = dictionary["timestamp"]
+            r = requests.post(url=url,data=bytes(str(data_log),'ascii'))
+            confirm = True
+        except:
+            print("couldn't commit")
+        if confirm:
+            return Response("commited")
+    return Response("Couldn't commit") # should unique ID of the partition
 
 
 
@@ -606,7 +624,7 @@ def confirmProducerCreation():
     # print(no_of_nodes)
     votes = incrementeNewPartionsVotes()
     data = getNewProducer()
-    if votes == 2 :# count the no of nodes and make it generalized 
+    if votes == math.ceil((len(node.peers)+1)/2) :# count the no of nodes and make it generalized 
         try:
             recieved_data = request.data.decode()
             dictionary = dict()
@@ -697,6 +715,7 @@ def GetTopicById():
    
 @app.route('/brokers', methods=['POST'])
 def get_data_brokers():
+    # print("_____________________________________________________________________________________")
     print("reciever data from client :",request.data.decode())
     votes = set_votes()
     set_current_log(str(request.data.decode()))
@@ -723,7 +742,7 @@ def leader_confirm():
     print(no_of_nodes)
     votes =increament_votes()
     data = get_current_log()
-    if votes == 2 :# count the no of nodes and make it generalized 
+    if votes == math.ceil((len(node.peers)+1)/2) :# count the no of nodes and make it generalized 
         id = set_log_id()
         update_log_id(id)
         log_id = increament_current_log_id()
@@ -811,21 +830,36 @@ def sendSnapshot():
         print("not able to send snap shot")
     return Response("send Snapshot")
 
+@app.route('/FetchPartialSnapshot',methods = ['POST'])
+def sendPartialSnapshot():
+    print("recieved request")
+    url = 'http://127.0.1.1:7000/recievePartialSnapshot'
+    try:
+        r = requests.post(url=url,data=bytes(str(MetaData),'ascii'))
+    except:
+        print("not able to send snap shot")
+    return Response("send Snapshot")
+
 
 def leader_run_madu(node):
 
     def ping():
         while not node.shutdown_flag:
             time.sleep(2)
-            url = 'http://127.0.1.1:6000/BrokerHeartBeat'
+            Brokerurl = 'http://127.0.1.1:6000/BrokerHeartBeat'
+            Producerurl = 'http://127.0.1.1:7000/ProducerHeartBeat'
             while True:
                 data = MetaData['timestamp']+'|'+'http://127.0.1.1:'+str(node.port+1)
                 data = bytes(str(data),'ascii')
                 try:
-                    r = requests.post(url=url,data=data)
+                    r = requests.post(url=Brokerurl,data=data)
                 except:
-                    print("Broker Down")
-                
+                    print("Broker is Down")
+                try:
+                    r = requests.post(url=Producerurl,data=data)
+                except:
+                    print("Producer is Down")
+                    
             # time.sleep(2)
             # print("from leader",node.state)
             # for peer in node.peers.values():
@@ -842,6 +876,7 @@ def leader_callback(node):
     print('starting...')
     node = threading.Thread(target=leader_run_madu, args=(node,))
     node.start()
+    # node.join()
     
 def follower_run_madu(node):
     i = 0
