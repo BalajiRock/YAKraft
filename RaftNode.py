@@ -885,6 +885,8 @@ def GetAllActiveBrokers():
         if records["fields"]["brokerStatus"] == 'active':
             result.append(records)
     result = str(result)
+    url = 'http://127.0.1.1:'+str(node.port+1)+'/brokers'
+    r = requests.post(url=url,data=bytes(str(result),'ascii'))
     return Response(bytes(result,'ascii'))
 
 @app.route('/GetBrokerById',methods= ['POST'])
@@ -896,6 +898,8 @@ def GetBrokerById():
         print(requested_id,records["fields"]["brokerId"])
         if int(records["fields"]["brokerId"]) == int(requested_id):
             result = records
+    url = 'http://127.0.1.1:'+str(node.port+1)+'/brokers'
+    r = requests.post(url=url,data=bytes(str(result),'ascii'))
     return Response(bytes(str(result),'ascii'))
 
 @app.route('/GetTopicBYId',methods=['POST'])
@@ -908,6 +912,8 @@ def GetTopicById():
         print(requested_name,records["fields"]["internalUUID"])
         if records["fields"]["name"] == requested_name:
             result = records
+    url = 'http://127.0.1.1:'+str(node.port+1)+'/brokers'
+    r = requests.post(url=url,data=bytes(str(result),'ascii'))
     return Response(bytes(str(result),'ascii'))
 
 
