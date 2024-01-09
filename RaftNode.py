@@ -399,7 +399,6 @@ def replicateCreateTopic():
     # print(recieved_data)
     recieved_data = recieved_data.strip()[1:-1].split(",")
     for ele in recieved_data:
-        # print("--------------------------------------",ele)
         dictionary[ele.strip().split(":",1)[0][1:-1]] = ele.strip().split(":",1)[1].strip()[1:-1]
     data = dict()
     data["type"] = "metadata"
@@ -506,7 +505,6 @@ def replicateCreatepartition():
         dictionary = dict()
         recieved_data = recieved_data.strip()[1:-1].split(",")
         for ele in recieved_data:
-            # print("--------------------------------------",ele)
             dictionary[ele.strip().split(":",1)[0][1:-1]] = ele.strip().split(":",1)[1].strip()[1:-1]
         data = dict()
         data["type"] = "metadata"
@@ -549,12 +547,10 @@ def confirmPartitionCreation():
     if votes == math.ceil((len(node.peers)+1)/2) :# count the no of nodes and make it generalized 
         try:
             recieved_data = request.data.decode()
-            # print("------------------>>>>>>>>>",recieved_data)
             # data = json.loads(data)
             dictionary = dict()
             recieved_data = recieved_data.strip()[1:-1].split(",")
             for ele in recieved_data:
-                # print("--------------------------------------",ele)
                 dictionary[ele.strip().split(":",1)[0][1:-1]] = ele.strip().split(":",1)[1].strip()[1:-1]
             data = dict()
             data["type"] = "metadata"
@@ -659,7 +655,6 @@ def confirmProducerCreation():
             dictionary = dict()
             recieved_data = recieved_data.strip()[1:-1].split(",")
             for ele in recieved_data:
-                # print("--------------------------------------",ele)
                 dictionary[ele.strip().split(":",1)[0][1:-1]] = ele.strip().split(":",1)[1].strip()[1:-1]
             data = dict()
             data["type"] = "metadata"
@@ -694,7 +689,6 @@ def updateBrokerRecordFromClient():
     print("Client requested to create new Producer :",request.data.decode())
     # Alter the recieved data here
     client_data = json.loads(request.data.decode())
-    # print("Meta Data ======================",MetaData,client_data["brokerId"])
     data = dict()
     data["brokerId"] = client_data["brokerId"]
     data["brokerHost"] = client_data["brokerHost"]
@@ -816,68 +810,6 @@ def replicateUpdateBroker():
     return Response("failure")
 
 
-
-
-
-
-
-
-
-# --------------------------------------------------------------------------------------------------------------------------------------------------------
-# --------------------------------------------------------------------------------------------------------------------------------------------------------
-# --------------------------------------------------------------------------------------------------------------------------------------------------------
-# --------------------------------------------------------------------------------------------------------------------------------------------------------
-# --------------------------------------------------------------------------------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# --------------------------------------------------------------------------------------------------------------------------------------------------------
-# --------------------------------------------------------------------------------------------------------------------------------------------------------
-# --------------------------------------------------------------------------------------------------------------------------------------------------------
-# --------------------------------------------------------------------------------------------------------------------------------------------------------
-# --------------------------------------------------------------------------------------------------------------------------------------------------------
-
-
-
-
-
-
 @app.route('/GetAllActiveBrokers',methods=['POST'])
 def GetAllActiveBrokers():
     result = []
@@ -913,34 +845,12 @@ def GetTopicById():
         if records["fields"]["name"] == requested_name:
             result = records
     url = 'http://127.0.1.1:'+str(node.port+1)+'/brokers'
-    r = requests.post(url=url,data=bytes(str(result),'ascii'))
+    r = requests.post(url=url,data=bytes(str(result),'ascii')) 
     return Response(bytes(str(result),'ascii'))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
    
 @app.route('/brokers', methods=['POST'])
 def get_data_brokers():
-    # print("_____________________________________________________________________________________")
     print("reciever data from client :",request.data.decode())
     votes = set_votes()
     set_current_log(str(request.data.decode()))
@@ -1084,14 +994,6 @@ def leader_run_madu(node):
                     r = requests.post(url=Producerurl,data=data)
                 except:
                     print("Producer is Down")
-                    
-            # time.sleep(2)
-            # print("from leader",node.state)
-            # for peer in node.peers.values():
-            #     # print("peer-address",peer.addr)
-            #     url = 'http://127.0.1.1:'+str(int(peer.port)+1)
-            #     data = b'leader alive'
-   
     
     x1 = threading.Thread(target=ping)
     x1.start()
